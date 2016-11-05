@@ -23,22 +23,29 @@ class val Message
 
 	fun string(): String =>
 		var result = String()
-		result.append(prefix)
-			.append(" ")
-			.append(command)
-		for s in params.values() do
+		if (prefix != "") then
+			result
+				.append(":")
+				.append(prefix)
+				.append(" ")
+		end
+		result.append(command)
+		for (i, s) in params.pairs() do
+			if (i == (params.size()-1)) and (s == trailing) then continue end
 			result.append(" ")
 			result.append(s)
 		end
-		result.append(":")
-			.append(trailing)
+		if (trailing != "") then
+			result.append(" :")
+				.append(trailing)
+		end
 		result.clone()
 
 	new val create(
 			raw': String,
 			prefix': String,
 			command': String,
-//			params': Array[String] val,
+			params': String,
 			trailing': String//,
 //			a': Array[String] val = Array[String](0)
 			) =>
@@ -46,7 +53,7 @@ class val Message
 		prefix = prefix'
 		command = command'
 		trailing = trailing'
-		params = Array[String](0)
+		params = params'.split(",")
 		a = Array[String](0)
 //		params = params'
 //		a = a'
