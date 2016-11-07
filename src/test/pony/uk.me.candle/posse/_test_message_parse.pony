@@ -85,16 +85,24 @@ class Dump
 class iso _TestCreateStringPing is UnitTest
 	fun name(): String => "create - string / ping"
 	fun apply(h: TestHelper) =>
-		let m = Message.create("", "", "PING", "", "some data")
+		let m = Message.create("", "PING", recover Array[String](0) end, "some data")
 		Dump(h, m)
 		h.assert_eq[String]("PING :some data", m.string())
 
 class iso _TestCreateStringPong is UnitTest
 	fun name(): String => "create - string / pong"
 	fun apply(h: TestHelper) =>
-		let m = Message.create("", "", "PONG", "data", "")
+		let m = Message.create("", "PONG", recover ["data"] end, "")
 		Dump(h, m)
 		h.assert_eq[String]("PONG data", m.string())
+
+class iso _TestPrependParam is UnitTest
+	fun name(): String => "prepend param / pong"
+	fun apply(h: TestHelper) =>
+		let m = Message.create("", "PONG", recover ["data"] end, "")
+			.prepend_param("other")
+		Dump(h, m)
+		h.assert_eq[String]("PONG data other", m.string())
 
 class iso _TestGenericRaw is UnitTest
 	let nme: String

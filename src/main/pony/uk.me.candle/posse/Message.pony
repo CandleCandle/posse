@@ -18,7 +18,7 @@ class val Message
 	let prefix: String
 	let command: String
 	let trailing: String
-	let params: Array[String]
+	let params: Array[String] val
 	let a: Array[String]
 
 	fun string(): String =>
@@ -42,21 +42,17 @@ class val Message
 		result.clone()
 
 	new val create(
-			raw': String,
 			prefix': String,
 			command': String,
-			params': String,
-			trailing': String//,
-//			a': Array[String] val = Array[String](0)
+			params': Array[String] val,
+			trailing': String
 			) =>
-		raw = raw'
+		raw = ""
 		prefix = prefix'
 		command = command'
 		trailing = trailing'
-		params = params'.split(",")
+		params = params'
 		a = Array[String](0)
-//		params = params'
-//		a = a'
 
 	new val from_raw(raw': String) =>
 		var prefix' = ""
@@ -82,6 +78,17 @@ class val Message
 			params'.push(trailing)
 		end
 		params = params'
+
+	fun prepend_param(param: String): Message val =>
+		let new_params: Array[String] val = params.clone()
+
+		Message.create(
+			prefix,
+			command,
+			new_params.push(param).clone(),
+			trailing
+		)
+
 
 
 
