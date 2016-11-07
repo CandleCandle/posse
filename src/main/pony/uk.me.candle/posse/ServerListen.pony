@@ -3,11 +3,13 @@ use "net"
 
 class ServerListen is TCPListenNotify
 	let out: OutStream
-	var users: UserRegistry
+	let users: UserRegistry
+	let server: ServerStats
 
-	new iso create(out': OutStream, users': UserRegistry) =>
+	new iso create(out': OutStream, users': UserRegistry, server': ServerStats) =>
 		out = out'
 		users = users'
+		server = server'
 
 	fun listening(listen: TCPListener ref) =>
 		var addr = ""
@@ -23,7 +25,7 @@ class ServerListen is TCPListenNotify
 
 	fun connected(listen: TCPListener ref): TCPConnectionNotify iso^ =>
 		out.print("* connected / TCPListenNotify")
-		let handler = ClientHandler.create(out, listen, users)
+		let handler = ClientHandler.create(out, listen, users, server)
 		handler
 
 // vi: sw=4 sts=4 ts=4 noet
