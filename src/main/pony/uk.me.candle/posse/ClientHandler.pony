@@ -55,7 +55,7 @@ class ClientHandler is TCPConnectionNotify
 		reader.append(consume data)
 		while true do
 			try
-				var input = reader.line()
+				var input = reader.line()?
 //				out.write(">** ")
 //				ArrString(out, input.array().clone())
 				out.print(">>> " + IPAddrString(conn.remote_address()) + " >>> " + input.clone())

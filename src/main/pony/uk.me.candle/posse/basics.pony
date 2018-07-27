@@ -116,7 +116,7 @@ actor User
 
 	fun _ping_pong(cmd: String, msg: Message): Message =>
 		if (msg.trailing == "") then
-			Message.create("", cmd, recover try [msg.params(0)] else Array[String](0) end end, "")
+			Message.create("", cmd, recover try [msg.params(0)?] else Array[String](0) end end, "")
 		else
 			Message.create("", cmd, recover Array[String](0) end, msg.trailing)
 		end
@@ -124,7 +124,7 @@ actor User
 	be do_nick(msg: Message) =>
 		//TODO if check_nick() then
 		try
-			nick = msg.params(0)
+			nick = msg.params(0)?
 		//else
 			// TODO respond with error
 		end
@@ -136,7 +136,7 @@ actor User
 
 	be do_user(msg: Message) =>
 		try
-			user = msg.params(0)
+			user = msg.params(0)?
 			real = msg.trailing
 		// else TODO respond with error.
 		end

@@ -61,13 +61,13 @@ class val Message
 		var params' = recover iso Array[String](0) end
 		var a' = Array[String](0)
 		try
-			let re = Regex(_pattern)
-			let matched = re(raw')
+			let re = Regex(_pattern)?
+			let matched = re(raw')?
 			a' = matched.groups()
-			prefix' = matched.groups().apply(1)
-			command' = matched.groups().apply(2)
-			params'.append(matched.groups().apply(3).clone().>strip(" ").split(" "))
-			trailing' = matched.groups().apply(6)
+			prefix' = matched.groups().apply(1)?
+			command' = matched.groups().apply(2)?
+			params'.append(matched.groups().apply(3)?.clone().>strip(" ").split(" "))
+			trailing' = matched.groups().apply(6)?
 		end
 		a = a'
 		raw = raw'

@@ -14,7 +14,7 @@ class ServerListen is TCPListenNotify
 	fun listening(listen: TCPListener ref) =>
 		var addr = ""
 		var service = ""
-		try (addr, service) = listen.local_address().name() end
+		try (addr, service) = listen.local_address().name()? end
 		out.print("* listening on: " + IPAddrString(listen.local_address()))
 
 	fun ref not_listening( listen: TCPListener ref) =>

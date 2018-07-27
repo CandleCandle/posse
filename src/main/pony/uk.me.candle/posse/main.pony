@@ -24,7 +24,7 @@ primitive IPAddrString
 	fun apply(address: NetAddress): String =>
 		var addr = ""
 		var service = ""
-		try (addr, service) = address.name() end
+		try (addr, service) = address.name()? end
 		var result = String.create()
 		if address.ip6() then
 			result.append("[")
