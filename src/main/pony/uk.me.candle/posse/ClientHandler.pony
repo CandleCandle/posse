@@ -41,7 +41,7 @@ class ClientHandler is TCPConnectionNotify
 //				| let a: Array[U8] val => ArrString(out, a.clone()); String.from_array(a).clone().>strip().clone()
 //			end
 		match data
-		| let s: String => out.print("<<< " + IPAddrString(conn.remote_address()) + " <<< " + s)
+		| let s: String => out.print("<<< " + IPAddrString(conn.remote_address()) + " <<< " + s.clone().>strip())
 		| let a: Array[U8] val => out.print("<<< " + IPAddrString(conn.remote_address()) + " <<< " + "<binary>")
 		end
 		data
