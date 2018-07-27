@@ -71,6 +71,7 @@ actor User
 	var real: String = ""
 	var host: String
 	var full: String = ""
+	var startup_sent: Bool = false
 
 	new create(out': OutStream, connection': TCPConnection, addr:NetAddress, users': UserRegistry, server': ServerStats) =>
 		out = out'
@@ -151,10 +152,13 @@ actor User
 			out.print("full: " + full)
 			// need to add the nickname as the first paramater, and 'full' to the end of the trailing.
 			let t: User tag = this
-			server.response_001(recover {(m: Message)(t) => t.to_client(m)} end)
-			server.response_002(recover {(m: Message)(t) => t.to_client(m)} end)
-			server.response_003(recover {(m: Message)(t) => t.to_client(m)} end)
-			server.response_004(recover {(m: Message)(t) => t.to_client(m)} end)
+			if not startup_sent then
+				server.response_001(recover {(m: Message)(t) => t.to_client(m)} end)
+				server.response_002(recover {(m: Message)(t) => t.to_client(m)} end)
+				server.response_003(recover {(m: Message)(t) => t.to_client(m)} end)
+				server.response_004(recover {(m: Message)(t) => t.to_client(m)} end)
+				startup_sent = true
+			end
 
 		end
 

@@ -15,7 +15,7 @@ class ClientHandler is TCPConnectionNotify
 		server = server'
 
 	fun ref accepted(conn: TCPConnection ref) =>
-		out.print("* accepted")
+		out.print("* accepted / TCPConnectionNotify")
 		user = User.create(out, conn, conn.remote_address(), users, server)
 
 	fun closed(conn: TCPConnection ref) =>
@@ -58,7 +58,7 @@ class ClientHandler is TCPConnectionNotify
 				var input = reader.line()?
 //				out.write(">** ")
 //				ArrString(out, input.array().clone())
-				out.print(">>> " + IPAddrString(conn.remote_address()) + " >>> " + input.clone())
+				out.print(">>> " + IPAddrString(conn.remote_address()) + " >>> " + input.clone().>strip())
 
 				match user
 				| let u: User => u.from_client(Message.from_raw(consume input))
