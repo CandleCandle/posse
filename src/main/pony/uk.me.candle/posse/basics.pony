@@ -6,7 +6,7 @@ actor ServerStats
 	let version: String
 	let user_registry: UserRegistry
 	let channel_registry: ChannelRegistry
-	let start_time: Date
+	let start_time: PosixDate
 
 	new create(server_name': String, version': String, user_registry': UserRegistry, channel_registry': ChannelRegistry) =>
 		server_name = server_name'
@@ -14,7 +14,7 @@ actor ServerStats
 		user_registry = user_registry'
 		channel_registry = channel_registry'
 		let now = Time.now()
-		start_time = Date.create(now._1, now._2)
+		start_time = PosixDate.create(now._1, now._2)
 
 	be response_001(callback: {(Message)} iso) =>
 		callback(Message.create(server_name, "001", recover Array[String](0) end, ""))
@@ -27,7 +27,7 @@ actor ServerStats
 
 	be response_004(callback: {(Message)} iso) =>
 		// [server_name, version, ??, ??]
-		callback(Message.create(server_name, "004", recover [server_name, version, "??", "??"] end, ""))
+		callback(Message.create(server_name, "004", recover [server_name; version; "??"; "??"] end, ""))
 
 	be response_005(callback: {(Array[Message] val)} iso) =>
 		// MAXCHANNELS=100 CHANLIMIT=#:100 MAXNICKLEN=30 NICKLEN=30 CHANNELLEN=32 TOPICLEN=307 KICKLEN=307 AWAYLEN=307
@@ -72,7 +72,7 @@ actor User
 	var host: String
 	var full: String = ""
 
-	new create(out': OutStream, connection': TCPConnection, addr:IPAddress, users': UserRegistry, server': ServerStats) =>
+	new create(out': OutStream, connection': TCPConnection, addr:NetAddress, users': UserRegistry, server': ServerStats) =>
 		out = out'
 		connection = connection'
 		users = users'
@@ -151,10 +151,10 @@ actor User
 			out.print("full: " + full)
 			// need to add the nickname as the first paramater, and 'full' to the end of the trailing.
 			let t: User tag = this
-			server.response_001(recover lambda (m: Message)(t) => t.to_client(m) end end)
-			server.response_002(recover lambda (m: Message)(t) => t.to_client(m) end end)
-			server.response_003(recover lambda (m: Message)(t) => t.to_client(m) end end)
-			server.response_004(recover lambda (m: Message)(t) => t.to_client(m) end end)
+			server.response_001(recover {(m: Message)(t) => t.to_client(m)} end)
+			server.response_002(recover {(m: Message)(t) => t.to_client(m)} end)
+			server.response_003(recover {(m: Message)(t) => t.to_client(m)} end)
+			server.response_004(recover {(m: Message)(t) => t.to_client(m)} end)
 
 		end
 

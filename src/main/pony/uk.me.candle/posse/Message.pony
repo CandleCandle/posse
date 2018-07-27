@@ -25,9 +25,9 @@ class val Message
 		var result = String()
 		if (prefix != "") then
 			result
-				.append(":")
-				.append(prefix)
-				.append(" ")
+				.>append(":")
+				.>append(prefix)
+				.>append(" ")
 		end
 		result.append(command)
 		for (i, s) in params.pairs() do
@@ -36,8 +36,8 @@ class val Message
 			result.append(s)
 		end
 		if (trailing != "") then
-			result.append(" :")
-				.append(trailing)
+			result.>append(" :")
+				.>append(trailing)
 		end
 		result.clone()
 
@@ -58,7 +58,7 @@ class val Message
 		var prefix' = ""
 		var command' = ""
 		var trailing' = ""
-		var params' = Array[String](0)
+		var params' = recover iso Array[String](0) end
 		var a' = Array[String](0)
 		try
 			let re = Regex(_pattern)
@@ -66,7 +66,7 @@ class val Message
 			a' = matched.groups()
 			prefix' = matched.groups().apply(1)
 			command' = matched.groups().apply(2)
-			params' = matched.groups().apply(3).clone().strip(" ").split(" ")
+			params'.append(matched.groups().apply(3).clone().>strip(" ").split(" "))
 			trailing' = matched.groups().apply(6)
 		end
 		a = a'
@@ -77,15 +77,17 @@ class val Message
 		if trailing' != "" then
 			params'.push(trailing)
 		end
-		params = params'
+		params = consume params'
 
 	fun prepend_param(param: String): Message val =>
-		let new_params: Array[String] val = params.clone()
+		let params': Array[String val] iso = recover iso Array[String](0) end
+		params'.append(params)
+		params'.push(param)
 
 		Message.create(
 			prefix,
 			command,
-			new_params.push(param).clone(),
+			consume params',
 			trailing
 		)
 

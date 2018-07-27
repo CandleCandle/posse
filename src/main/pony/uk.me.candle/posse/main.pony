@@ -21,7 +21,7 @@ actor Main
 		end
 
 primitive IPAddrString
-	fun apply(address: IPAddress): String =>
+	fun apply(address: NetAddress): String =>
 		var addr = ""
 		var service = ""
 		try (addr, service) = address.name() end

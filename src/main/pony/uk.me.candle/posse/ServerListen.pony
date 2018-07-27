@@ -17,15 +17,14 @@ class ServerListen is TCPListenNotify
 		try (addr, service) = listen.local_address().name() end
 		out.print("* listening on: " + IPAddrString(listen.local_address()))
 
-	fun not_listening( listen: TCPListener ref) =>
+	fun ref not_listening( listen: TCPListener ref) =>
 		out.print("Failed to listen on " + IPAddrString(listen.local_address()))
 
 	fun closed(listen: TCPListener ref) =>
 		out.print("* closed / TCPListenNotify")
 
-	fun connected(listen: TCPListener ref): TCPConnectionNotify iso^ =>
+	fun ref connected(listen: TCPListener ref): TCPConnectionNotify iso^ =>
 		out.print("* connected / TCPListenNotify")
-		let handler = ClientHandler.create(out, listen, users, server)
-		handler
+		ClientHandler.create(out, listen, users, server)
 
 // vi: sw=4 sts=4 ts=4 noet
