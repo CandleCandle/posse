@@ -79,6 +79,9 @@ class val Message
 		end
 		params = consume params'
 
+	fun val with_prefix(prefix': String): Message =>
+		Message(prefix', command, params, trailing)
+
 	fun prepend_param(param: String): Message val =>
 		let params': Array[String val] iso = recover iso Array[String](0) end
 		params'.append(params)

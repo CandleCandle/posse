@@ -3,12 +3,12 @@ use "net"
 
 class ServerListen is TCPListenNotify
 	let out: OutStream
-	let users: UserRegistry
+	let registries: Registries
 	let server: ServerStats
 
-	new iso create(out': OutStream, users': UserRegistry, server': ServerStats) =>
+	new iso create(out': OutStream, registries': Registries, server': ServerStats) =>
 		out = out'
-		users = users'
+		registries = registries'
 		server = server'
 
 	fun listening(listen: TCPListener ref) =>
@@ -25,6 +25,6 @@ class ServerListen is TCPListenNotify
 
 	fun ref connected(listen: TCPListener ref): TCPConnectionNotify iso^ =>
 		out.print("* connected / TCPListenNotify")
-		ClientHandler.create(out, listen, users, server)
+		ClientHandler.create(out, listen, registries, server)
 
 // vi: sw=4 sts=4 ts=4 noet

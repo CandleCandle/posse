@@ -7,9 +7,10 @@ actor Main
 		let channels = ChannelRegistry.create()
 		let users = UserRegistry.create(channels)
 		let server = ServerStats.create("posse", "0.1", users, channels)
+		let registries = Registries(channels, users)
 
 		try
-			let listen = ServerListen.create(env.out, users, server)
+			let listen = ServerListen.create(env.out, registries, server)
 			TCPListener.create(
 				env.root as AmbientAuth,
 				consume listen,
@@ -19,6 +20,14 @@ actor Main
 		else
 			env.out.print("Failed to create listener")
 		end
+
+class val Registries
+	let channels: ChannelRegistry
+	let users: UserRegistry
+
+	new val create(channels': ChannelRegistry, users': UserRegistry) =>
+		channels = channels'
+		users = users'
 
 primitive IPAddrString
 	fun apply(address: NetAddress): String =>

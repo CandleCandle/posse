@@ -4,19 +4,19 @@ use "buffered"
 class ClientHandler is TCPConnectionNotify
 	let out: OutStream
 	let listen: TCPListener
-	let users: UserRegistry
+	let registries: Registries
 	let server: ServerStats
 	var user: (User | None) = None
 
-	new iso create(out': OutStream, listen': TCPListener, users': UserRegistry, server': ServerStats) =>
+	new iso create(out': OutStream, listen': TCPListener, registries': Registries, server': ServerStats) =>
 		out = out'
 		listen = listen'
-		users = users'
+		registries = registries'
 		server = server'
 
 	fun ref accepted(conn: TCPConnection ref) =>
 		out.print("* accepted / TCPConnectionNotify")
-		user = User.create(out, conn, conn.remote_address(), users, server)
+		user = User.create(out, conn, conn.remote_address(), registries, server)
 
 	fun closed(conn: TCPConnection ref) =>
 		out.print("* closed / TCPConnectionNotify")

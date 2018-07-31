@@ -1,5 +1,6 @@
 use "net"
 use "time"
+use "collections"
 
 actor ServerStats
 	let server_name: String
@@ -38,7 +39,28 @@ actor ServerStats
 		] end)
 
 actor ChannelRegistry
-	var users: None = None//UserRegistry
+	var channels: Map[String, Channel] = Map[String, Channel]
+
+	be join(user: User, msg: Message) =>
+		try
+			let channel_name = msg.params(0)?
+			if not channels.contains(channel_name) then
+				channels(channel_name) = Channel(channel_name)
+			end
+			channels(channel_name)?.join(user, msg)
+		else
+			user.to_client(Message("", "461", [], "Not enough parameters"))
+		end
+
+	be update_topic(user: User, msg: Message) =>
+		try
+			let channel_name = msg.params(0)?
+			try
+				channels(channel_name)?.update_topic(user, msg)
+			else
+				user.to_client(Message("", "403", [channel_name], "no such channel"))
+			end
+		end
 
 //	be users(users' 
 
@@ -49,12 +71,54 @@ actor UserRegistry
 	new create(channels': ChannelRegistry) =>
 		channels = channels'
 
+	be privmsg(user: User, msg: Message) =>
+		// if <target>.startsWith('#') delegate to channel registry;
+		// otherwise look for the user here and send.
+		None
 
 // actor ServerRegistry
 
 
 actor Channel
 	let users: Array[User] = Array[User].create()
+	let name: String
+	var topic: String = ""
+
+	new create(name': String) =>
+		name = name'
+
+	be join(user: User, msg: Message) =>
+		// before "joining": RPL_TOPIC
+		if topic.size() > 0 then
+			user.to_client(Message("posse", "332", [name], topic.clone())) // RPL_TOPIC
+		else
+			user.to_client(Message("posse", "331", [name], "")) // RPL_NOTOPIC
+		end
+
+		users.push(user)
+		// after "joining": RPL_NAMREPLY so that this user is included in the reply.
+		// should join names to reduce the number of messages sent.
+
+		for u in users.values() do
+			u.with_data(
+				recover {(nick, _a, _b, _c, _d)(user) =>
+					user.to_client(Message("", "353", [name], nick)) // RPL_NAMREPLY
+				} end)
+			u.with_data(
+				recover {(_n, _u, _r, _h, full)(user, u, name) =>
+					user.with_data(
+						recover {(_n', _u', _r', _h', full')(u, name) =>
+							u.to_client(Message(full', "JOIN", [name], ""))
+						} end)
+				} end)
+		end
+		user.to_client(Message("", "366", [name], "")) // RPL_ENDOFNAMES
+
+	be update_topic(user: User, msg: Message) =>
+		topic = msg.trailing
+		for u in users.values() do
+			u.to_client(Message("", "332", [name], topic.clone()))
+		end
 
 	be privmsg(msg: Message) =>
 		"""
@@ -64,7 +128,7 @@ actor Channel
 actor User
 	let out: OutStream
 	let connection: TCPConnection
-	let users: UserRegistry
+	let registries: Registries
 	let server: ServerStats
 	var nick: String = ""
 	var user: String = ""
@@ -73,12 +137,18 @@ actor User
 	var full: String = ""
 	var startup_sent: Bool = false
 
-	new create(out': OutStream, connection': TCPConnection, addr:NetAddress, users': UserRegistry, server': ServerStats) =>
+	new create(out': OutStream, connection': TCPConnection, addr:NetAddress, registries': Registries, server': ServerStats) =>
 		out = out'
 		connection = connection'
-		users = users'
+		registries = registries'
 		server = server'
 		host = IPAddrString(addr)
+
+	be with_data(callback: {(String, String, String, String, String)} iso) =>
+		"""
+		nick, user, real, host, full
+		"""
+		callback(nick, user, real, host, full)
 
 	be connect_timeout() =>
 		"""
@@ -104,10 +174,26 @@ actor User
 		| "USER" => do_user(msg)
 		| "PING" => do_ping(msg)
 		| "PONG" => do_pong(msg)
+		| "JOIN" => do_join(msg)
+		| "PRIVMSG" => do_privmsg(msg)
+		| "TOPIC" => do_topic(msg)
+//		| "QUIT" => do_quit(msg)
 		end
+	
+	fun ref prefix(): String =>
+		nick + "!" + user + "@" + host
 
 	be to_client(msg: Message) =>
 		connection.write(msg.string() + "\r\n")
+
+	be do_join(msg: Message) =>
+		registries.channels.join(this, msg.with_prefix(prefix()))
+
+	be do_topic(msg: Message) =>
+		registries.channels.update_topic(this, msg.with_prefix(prefix()))
+
+	be do_privmsg(msg: Message) =>
+		registries.users.privmsg(this, msg)
 
 	be do_ping(msg: Message) =>
 		to_client(_ping_pong("PONG", msg))
@@ -157,6 +243,7 @@ actor User
 				server.response_002(recover {(m: Message)(t) => t.to_client(m)} end)
 				server.response_003(recover {(m: Message)(t) => t.to_client(m)} end)
 				server.response_004(recover {(m: Message)(t) => t.to_client(m)} end)
+				// users.register(t)
 				startup_sent = true
 			end
 
