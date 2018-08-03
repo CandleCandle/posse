@@ -1,6 +1,8 @@
 use "net"
 use "time"
 use "collections"
+use "promises"
+use "itertools"
 
 actor ServerStats
 	let server_name: String
@@ -97,13 +99,25 @@ actor Channel
 
 		users.push(user)
 		// after "joining": RPL_NAMREPLY so that this user is included in the reply.
+
 		// should join names to reduce the number of messages sent.
 
+		let ps: Iterator[Promise[String]] = Iter[User](users.values())
+			.map[Promise[String]]({(u: User): Promise[String] =>
+				let p = Promise[String]
+				u.with_nick(p)
+				p
+			})
+		Promises[String val].join(ps)
+			.next[None]({(nicks: Array[String val] val) =>
+				for n in nicks.values() do
+					user.to_client(Message("", "353", [name], n)) // RPL_NAMREPLY
+				end
+				user.to_client(Message("", "366", [name], "")) // RPL_ENDOFNAMES
+			})
+
+		// TODO make this less ugly
 		for u in users.values() do
-			u.with_data(
-				recover {(nick, _a, _b, _c, _d)(user) =>
-					user.to_client(Message("", "353", [name], nick)) // RPL_NAMREPLY
-				} end)
 			u.with_data(
 				recover {(_n, _u, _r, _h, full)(user, u, name) =>
 					user.with_data(
@@ -112,7 +126,6 @@ actor Channel
 						} end)
 				} end)
 		end
-		user.to_client(Message("", "366", [name], "")) // RPL_ENDOFNAMES
 
 	be update_topic(user: User, msg: Message) =>
 		topic = msg.trailing
@@ -143,6 +156,8 @@ actor User
 		registries = registries'
 		server = server'
 		host = IPAddrString(addr)
+
+	be with_nick(p: Promise[String]) => p(nick)
 
 	be with_data(callback: {(String, String, String, String, String)} iso) =>
 		"""
