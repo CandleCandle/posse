@@ -1,7 +1,7 @@
 use "ponytest"
 use "uk.me.candle/posse"
 
-actor Main is TestList
+actor TestMessageParse is TestList
 	new create(env: Env) =>
 		PonyTest(env, this)
 	new make() => None
