@@ -5,7 +5,7 @@ use "format"
 actor Main
 	new create(env: Env) =>
 		let channels = ChannelRegistry.create()
-		let users = UserRegistry.create(channels)
+		let users = UserRegistry.create()
 		let server = ServerStats.create("posse", "0.1", users, channels)
 		let registries = Registries(channels, users)
 
@@ -30,7 +30,7 @@ class val Registries
 		users = users'
 
 primitive IPAddrString
-	fun apply(address: NetAddress): String =>
+	fun apply(address: NetAddress, port: Bool = true): String =>
 		var addr = ""
 		var service = ""
 		try (addr, service) = address.name()? end
@@ -42,8 +42,10 @@ primitive IPAddrString
 		if address.ip6() then
 			result.append("]")
 		end
-		result.append(":")
-		result.append(service)
+		if port then
+			result.append(":")
+			result.append(service)
+		end
 		result.clone()
 
 primitive ArrString

@@ -64,22 +64,35 @@ actor ChannelRegistry
 			end
 		end
 
-//	be users(users' 
+	be privmsg(user: User, msg: Message) =>
+		try
+			let channel_name = msg.params(0)?
+			if channels.contains(channel_name) then
+				channels(channel_name)?.privmsg(user, msg)
+			else
+				user.to_client(Message("", "403", [channel_name], "no such channel"))
+			end
+		// else // TODO handle malformed channel names.
+		end
+
 
 
 actor UserRegistry
-	let channels: ChannelRegistry
+	var users: Array[User] = Array[User]
+
+	be add(user: User) =>
+		users.push(user)
 	
-	new create(channels': ChannelRegistry) =>
-		channels = channels'
-
 	be privmsg(user: User, msg: Message) =>
-		// if <target>.startsWith('#') delegate to channel registry;
-		// otherwise look for the user here and send.
-		None
-
-// actor ServerRegistry
-
+		for u in users.values() do
+			u.with_data(recover {(nick, _u, _r, _h, _f)(msg, u) =>
+				try
+					if msg.params(0)? == nick then
+						u.to_client(msg)
+					end
+				end
+			} end )
+		end
 
 actor Channel
 	let users: Array[User] = Array[User].create()
@@ -111,9 +124,9 @@ actor Channel
 		Promises[String val].join(ps)
 			.next[None]({(nicks: Array[String val] val) =>
 				for n in nicks.values() do
-					user.to_client(Message("", "353", [name], n)) // RPL_NAMREPLY
+					user.to_client_with_nick(Message("", "353", ["="; name], n)) // RPL_NAMREPLY
 				end
-				user.to_client(Message("", "366", [name], "")) // RPL_ENDOFNAMES
+				user.to_client_with_nick(Message("", "366", [name], "End of /NAMES")) // RPL_ENDOFNAMES
 			})
 
 		// TODO make this less ugly
@@ -133,10 +146,13 @@ actor Channel
 			u.to_client(Message("", "332", [name], topic.clone()))
 		end
 
-	be privmsg(msg: Message) =>
-		"""
-		"""
-		//users.foreach(e -> e.send_msg(msg))
+	be privmsg(user: User, msg: Message) =>
+		// TODO check channel modes.
+		for u in users.values() do
+			if not (u is user) then
+				u.to_client(msg)
+			end
+		end
 
 actor User
 	let out: OutStream
@@ -155,7 +171,7 @@ actor User
 		connection = connection'
 		registries = registries'
 		server = server'
-		host = IPAddrString(addr)
+		host = IPAddrString(addr, false)
 
 	be with_nick(p: Promise[String]) => p(nick)
 
@@ -198,6 +214,8 @@ actor User
 	fun ref prefix(): String =>
 		nick + "!" + user + "@" + host
 
+	be to_client_with_nick(msg: Message) =>
+		connection.write(msg.with_param_first(nick).string() + "\r\n")
 	be to_client(msg: Message) =>
 		connection.write(msg.string() + "\r\n")
 
@@ -208,7 +226,14 @@ actor User
 		registries.channels.update_topic(this, msg.with_prefix(prefix()))
 
 	be do_privmsg(msg: Message) =>
-		registries.users.privmsg(this, msg)
+		try
+			let target = msg.params(0)?
+			if target.substring(0, 1) == "#" then // TODO make this understand configurable channel prefix characters.
+				registries.channels.privmsg(this, msg.with_prefix(prefix()))
+			else
+				registries.users.privmsg(this, msg.with_prefix(prefix()))
+			end
+		end
 
 	be do_ping(msg: Message) =>
 		to_client(_ping_pong("PONG", msg))
@@ -225,6 +250,7 @@ actor User
 
 	be do_nick(msg: Message) =>
 		//TODO if check_nick() then
+		let oldfull = full
 		try
 			nick = msg.params(0)?
 		//else
@@ -234,7 +260,14 @@ actor User
 		//else
 		//--- respond with 433
 		//end
+
+		if startup_sent then
+			// TODO send the nick change message to all interested parties.
+			to_client(Message(oldfull, "NICK", [], nick))
+		end
+
 		check_logged_in_correctly_and_send_initial_stuff()
+
 
 	be do_user(msg: Message) =>
 		try
@@ -249,15 +282,16 @@ actor User
 	fun ref check_logged_in_correctly_and_send_initial_stuff() =>
 		// TODO rename.
 		if (nick != "") and (real != "") then
-			full = nick + "!" + user + "@" + host
+			full = prefix()
 			out.print("full: " + full)
 			// need to add the nickname as the first paramater, and 'full' to the end of the trailing.
 			let t: User tag = this
 			if not startup_sent then
-				server.response_001(recover {(m: Message)(t) => t.to_client(m)} end)
-				server.response_002(recover {(m: Message)(t) => t.to_client(m)} end)
-				server.response_003(recover {(m: Message)(t) => t.to_client(m)} end)
-				server.response_004(recover {(m: Message)(t) => t.to_client(m)} end)
+				registries.users.add(this)
+				server.response_001(recover {(m: Message)(t) => t.to_client(m.with_param_first(nick)) } end)
+				server.response_002(recover {(m: Message)(t) => t.to_client(m.with_param_first(nick)) } end)
+				server.response_003(recover {(m: Message)(t) => t.to_client(m.with_param_first(nick)) } end)
+				server.response_004(recover {(m: Message)(t) => t.to_client(m.with_param_first(nick)) } end)
 				// users.register(t)
 				startup_sent = true
 			end

@@ -82,6 +82,17 @@ class val Message
 	fun val with_prefix(prefix': String): Message =>
 		Message(prefix', command, params, trailing)
 
+	fun val with_param_first(param': String): Message =>
+		let params': Array[String val] iso = recover iso Array[String val] end
+		params'.push(param')
+		params'.append(params)
+		Message(prefix, command, consume params', trailing)
+
+	fun val with_param(param': String): Message =>
+		let params': Array[String val] iso = recover iso params.clone() end
+		params'.push(param')
+		Message(prefix, command, consume params', trailing)
+
 	fun prepend_param(param: String): Message val =>
 		let params': Array[String val] iso = recover iso Array[String](0) end
 		params'.append(params)
