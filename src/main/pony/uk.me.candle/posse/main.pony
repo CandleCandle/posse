@@ -7,11 +7,11 @@ actor Main
 	new create(env: Env) =>
 		let channels = ChannelRegistry.create()
 		let users = UserRegistry.create()
-		let server = ServerStats.create("posse", "0.1", users, channels)
 		let registries = Registries(channels, users)
 
 		try
 			let server_conf = ServerConfig.from_args(env.args, env.out)?
+			let server = ServerStats.create(server_conf.server_name, "0.1", users, channels)
 			let listen = ServerListen.create(env.out, registries, server)
 			TCPListener.create(
 				env.root as AmbientAuth,
