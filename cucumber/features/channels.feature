@@ -6,7 +6,7 @@ Scenario: Joining Channels
     | USER carrot0 * * :aubergine0 |
     | JOIN #watch |
   Then I receive matching responses on connection 0
-    | :cucumber0!carrot0@\[::1\] JOIN #watch |
+    | :cucumber0!carrot0@((\[::1\])\|(127\.0\.\d+\.\d+)) JOIN #watch |
     | 353 cucumber0 = #watch :cucumber0 |
     | 366 cucumber0 #watch :End of /NAMES |
 
