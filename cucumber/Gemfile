@@ -1,0 +1,9 @@
+
+source "https://rubygems.org" do
+  gem 'process-helper', '~> 1'
+  gem "cucumber"
+  gem "rspec"
+  gem 'rspec-expectations'
+  gem 'awesome_print'
+  gem 'pry'
+end
