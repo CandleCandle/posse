@@ -13,8 +13,16 @@ After do |scenario|
   IRCD.stop
 
   IRCD.logs.each do |k, v|
-    puts "\n\n\tlog for: #{k}"
+    puts "\n\n\tServer log for: #{k}"
     v.each {|l| puts l}
+  end
+
+  @clients ||= []
+  @clients.each_index do |i|
+    client = @clients[i]
+    puts "\n\nClient log for #{i}"
+    a = client.responses.to_a
+    a.each_index {|i| puts a[i]}
   end
 end
 
