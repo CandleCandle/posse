@@ -70,6 +70,7 @@ actor User
 		| "PING" => do_ping(msg)
 		| "PONG" => do_pong(msg)
 		| "JOIN" => do_join(msg)
+		| "PART" => do_part(msg)
 		| "PRIVMSG" => do_privmsg(msg)
 		| "TOPIC" => do_topic(msg)
 //		| "QUIT" => do_quit(msg)
@@ -85,6 +86,9 @@ actor User
 
 	be do_join(msg: Message) =>
 		registries.channels.join(this, msg.with_prefix(prefix()))
+
+	be do_part(msg: Message) =>
+		registries.channels.part(this, msg.with_prefix(prefix()))
 
 	be do_topic(msg: Message) =>
 		registries.channels.update_topic(this, msg.with_prefix(prefix()))

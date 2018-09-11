@@ -20,6 +20,14 @@ actor ChannelRegistry
 			user.to_client(Message("", "461", [], "Not enough parameters"))
 		end
 
+	be part(user: User, msg: Message) =>
+		try
+			let channel_name = msg.params(0)?
+			channels(channel_name)?.part(user, msg)
+		else
+			user.to_client(Message("", "461", [], "Not enough parameters"))
+		end
+
 	be update_topic(user: User, msg: Message) =>
 		try
 			let channel_name = msg.params(0)?
@@ -79,15 +87,20 @@ actor Channel
 			})
 
 		// TODO make this less ugly
-		for u in users.values() do
-			u.with_data(
-				recover {(_n, _u, _r, _h, full)(user, u, name) =>
-					user.with_data(
-						recover {(_n', _u', _r', _h', full')(u, name) =>
-							u.to_client(Message(full', "JOIN", [name], ""))
-						} end)
-				} end)
-		end
+		send_to_all_users(msg)
+//		for u in users.values() do
+//			u.with_data(
+//				recover {(_n, _u, _r, _h, full)(user, u, name) =>
+//					user.with_data(
+//						recover {(_n', _u', _r', _h', full')(u, name) =>
+//							u.to_client(Message(full', "JOIN", [name], ""))
+//						} end)
+//				} end)
+//		end
+
+	be part(user: User, msg: Message) =>
+		try users.delete(users.find(user)?)? end
+		send_to_all_other_users(user, msg)
 
 	be update_topic(user: User, msg: Message) =>
 		topic = msg.trailing
@@ -97,6 +110,14 @@ actor Channel
 
 	be privmsg(user: User, msg: Message) =>
 		// TODO check channel modes.
+		send_to_all_other_users(user, msg)
+
+	fun ref send_to_all_users(msg: Message) =>
+		for u in users.values() do
+			u.to_client(msg)
+		end
+
+	fun ref send_to_all_other_users(user: User, msg: Message) =>
 		for u in users.values() do
 			if not (u is user) then
 				u.to_client(msg)
