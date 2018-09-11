@@ -49,6 +49,11 @@ actor ChannelRegistry
 		// else // TODO handle malformed channel names.
 		end
 
+	be quit(user: User, msg: Message) =>
+		for c in channels.values() do
+			c.quit(user, msg)
+		end
+
 actor Channel
 	let server_conf: ServerConfig
 	let users: Array[User] = Array[User].create()
@@ -86,17 +91,14 @@ actor Channel
 				user.to_client_with_nick(Message("", "366", [name], "End of /NAMES")) // RPL_ENDOFNAMES
 			})
 
-		// TODO make this less ugly
 		send_to_all_users(msg)
-//		for u in users.values() do
-//			u.with_data(
-//				recover {(_n, _u, _r, _h, full)(user, u, name) =>
-//					user.with_data(
-//						recover {(_n', _u', _r', _h', full')(u, name) =>
-//							u.to_client(Message(full', "JOIN", [name], ""))
-//						} end)
-//				} end)
-//		end
+
+	be quit(user: User, msg: Message) =>
+		// XXX If two users share channels, then the non-quitting user will get multiple QUIT messages.
+		if users.contains(user) then
+			try users.delete(users.find(user)?)? end
+			send_to_all_other_users(user, msg)
+		end
 
 	be part(user: User, msg: Message) =>
 		try users.delete(users.find(user)?)? end
