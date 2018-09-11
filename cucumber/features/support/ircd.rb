@@ -18,6 +18,13 @@ class Ircd
     @process.kill
     @process.wait_for_exit
   end
+
+  def logs()
+    {
+      err: @process.get_log(:err),
+      out: @process.get_log(:out)
+    }
+  end
     
 end
 
