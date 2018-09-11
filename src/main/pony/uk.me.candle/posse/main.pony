@@ -5,13 +5,13 @@ use "options"
 
 actor Main
 	new create(env: Env) =>
-		let channels = ChannelRegistry.create()
-		let users = UserRegistry.create()
-		let registries = Registries(channels, users)
-
 		try
 			let server_conf = ServerConfig.from_args(env.args, env.out)?
-			let server = ServerStats.create(server_conf.server_name, "0.1", users, channels)
+			let channels = ChannelRegistry.create(server_conf)
+			let users = UserRegistry.create()
+			let registries = Registries(channels, users)
+
+			let server = ServerStats.create(server_conf, users, channels)
 			let listen = ServerListen.create(env.out, registries, server)
 			TCPListener.create(
 				env.root as AmbientAuth,
@@ -23,12 +23,13 @@ actor Main
 			env.out.print("Failed to create listener")
 		end
 
-class ServerConfig
+class val ServerConfig
 	let host: String
 	let service: String
 	let server_name: String
+	let server_version: String
 
-	new from_args(args: Array[String val] val, out: OutStream) ? =>
+	new val from_args(args: Array[String val] val, out: OutStream) ? =>
 		var options = Options(args)
 		options
 			.add("host", "h", StringArgument)
@@ -51,6 +52,7 @@ class ServerConfig
 		host = consume host'
 		service = consume service'
 		server_name = consume server_name'
+		server_version = "0.1"
 
 class val Registries
 	let channels: ChannelRegistry

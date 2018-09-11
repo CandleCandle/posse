@@ -11,9 +11,9 @@ actor ServerStats
 	let channel_registry: ChannelRegistry
 	let start_time: PosixDate
 
-	new create(server_name': String, version': String, user_registry': UserRegistry, channel_registry': ChannelRegistry) =>
-		server_name = server_name'
-		version = version'
+	new create(server_conf': ServerConfig, user_registry': UserRegistry, channel_registry': ChannelRegistry) =>
+		server_name = server_conf'.server_name
+		version = server_conf'.server_version
 		user_registry = user_registry'
 		channel_registry = channel_registry'
 		let now = Time.now()
@@ -41,13 +41,17 @@ actor ServerStats
 		] end)
 
 actor ChannelRegistry
+	let server_conf: ServerConfig
 	var channels: Map[String, Channel] = Map[String, Channel]
+
+	new create(server_conf': ServerConfig) =>
+		server_conf = server_conf'
 
 	be join(user: User, msg: Message) =>
 		try
 			let channel_name = msg.params(0)?
 			if not channels.contains(channel_name) then
-				channels(channel_name) = Channel(channel_name)
+				channels(channel_name) = Channel(server_conf, channel_name)
 			end
 			channels(channel_name)?.join(user, msg)
 		else
@@ -95,19 +99,21 @@ actor UserRegistry
 		end
 
 actor Channel
+	let server_conf: ServerConfig
 	let users: Array[User] = Array[User].create()
 	let name: String
 	var topic: String = ""
 
-	new create(name': String) =>
+	new create(server_conf': ServerConfig, name': String) =>
+		server_conf = server_conf'
 		name = name'
 
 	be join(user: User, msg: Message) =>
 		// before "joining": RPL_TOPIC
 		if topic.size() > 0 then
-			user.to_client(Message("posse", "332", [name], topic.clone())) // RPL_TOPIC
+			user.to_client(Message(server_conf.server_name, "332", [name], topic.clone())) // RPL_TOPIC
 		else
-			user.to_client(Message("posse", "331", [name], "")) // RPL_NOTOPIC
+			user.to_client(Message(server_conf.server_name, "331", [name], "")) // RPL_NOTOPIC
 		end
 
 		users.push(user)
