@@ -1,5 +1,5 @@
 use "ponytest"
-use "uk.me.candle/posse"
+use "../posse"
 
 actor Main is TestList
 	new create(env: Env) =>

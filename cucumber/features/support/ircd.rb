@@ -11,7 +11,7 @@ class Ircd
 
   def start()
     @process = ProcessHelper::ProcessHelper.new({print_lines: false})
-    @process.start([CUCUMBER_DIR + '/../target/build/posse', '--host', @host, '--port', @port.to_s, '--name', 'server_name'], /listening on: .*:#{@port}/)
+    @process.start([CUCUMBER_DIR + '/../bin/posse', '--host', @host, '--port', @port.to_s, '--name', 'server_name'], /listening on: .*:#{@port}/)
   end
 
   def stop()
