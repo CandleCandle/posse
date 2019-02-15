@@ -1,6 +1,6 @@
 
 
-.PHONY: clean build test cucumber
+.PHONY: clean build test cucumber all
 
 test:
 	stable env ponyc -o bin test && ./bin/test
@@ -12,4 +12,6 @@ build:
 	stable env ponyc -o bin posse
 
 clean:
-	rm bin/*
+	rm -f bin/*
+
+all: clean test build cucumber
