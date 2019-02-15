@@ -1,5 +1,7 @@
 use "net"
 use "promises"
+use "collections"
+
 
 actor UserRegistry
 	var users: Array[User] = Array[User]
@@ -21,13 +23,128 @@ actor UserRegistry
 			} end )
 		end
 
-primitive _UserStateConnected fun apply(): String => "UserStateConnected"
-primitive _UserStateNickKnown fun apply(): String => "UserStateNickKnown"
-primitive _UserStateUserKnown fun apply(): String => "UserStateUserKnown"
-primitive _UserStateRegistered fun apply(): String => "UserStateRegistered"
-primitive _UserStateDisconnected fun apply(): String => "UserStateDisconnected"
+primitive _UserStateConnected fun apply(): String => "UserStateConnected" fun hash(): USize => apply().hash()
+primitive _UserStateNickKnown fun apply(): String => "UserStateNickKnown" fun hash(): USize => apply().hash()
+primitive _UserStateUserKnown fun apply(): String => "UserStateUserKnown" fun hash(): USize => apply().hash()
+primitive _UserStateRegistered fun apply(): String => "UserStateRegistered" fun hash(): USize => apply().hash()
+primitive _UserStateDisconnected fun apply(): String => "UserStateDisconnected" fun hash(): USize => apply().hash()
+primitive _UserStateCapabilityList fun apply(): String => "UserStateCapabilityList" fun hash(): USize => apply().hash()
+primitive _UserStateCapabilitiesNickKnown fun apply(): String => "UserStateapabilitiesNickKnown" fun hash(): USize => apply().hash()
+primitive _UserStateCapabilitiesUserKnown fun apply(): String => "UserStateapabilitiesUserKnown" fun hash(): USize => apply().hash()
 
-type _UserState is ( _UserStateConnected | _UserStateNickKnown | _UserStateUserKnown | _UserStateRegistered | _UserStateDisconnected )
+type _UserState is (
+		  _UserStateConnected | _UserStateCapabilityList
+		| _UserStateNickKnown | _UserStateCapabilitiesNickKnown
+		| _UserStateUserKnown | _UserStateCapabilitiesUserKnown
+		| _UserStateRegistered
+		| _UserStateDisconnected
+		)
+
+primitive _UserStates
+	fun only(states: Array[_UserState] val): Array[_UserState] val => states
+	fun all(): Array[_UserState] val => [_UserStateConnected; _UserStateNickKnown; _UserStateCapabilitiesNickKnown; _UserStateCapabilitiesUserKnown; _UserStateRegistered; _UserStateDisconnected; _UserStateCapabilityList]
+	fun all_but(states: Array[_UserState] val): Array[_UserState] val => all()
+
+interface ClientCommand
+	fun command(): String val
+		"""
+		String containing the command that the user will have sent
+		"""
+	fun user_states(): Array[_UserState] val
+		"""
+		Array of states where this command is valid. If there are conditions on the validity of certain states, then those checks should be done in the `handle` function.
+		"""
+	fun handle(user: User ref, msg: Message)
+		"""
+		Handle the message in whatever way is appropriate.
+		"""
+
+class val PingCommand is ClientCommand
+	fun command(): String val => "PING"
+	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected])
+	fun handle(user: User ref, msg: Message) =>
+		user.do_ping(msg)
+
+class val PongCommand is ClientCommand
+	fun command(): String val => "PONG"
+	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected])
+	fun handle(user: User ref, msg: Message) =>
+		user.do_pong(msg)
+
+class val PrivmsgCommand is ClientCommand
+	fun command(): String val => "PRIVMSG"
+	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
+	fun handle(user: User ref, msg: Message) =>
+		user.do_privmsg(msg)
+
+class val UserCommand is ClientCommand
+	fun command(): String val => "USER"
+	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateRegistered; _UserStateDisconnected])
+	fun handle(user: User ref, msg: Message) => user.do_user(msg)
+
+class val NickCommand is ClientCommand
+	fun command(): String val => "NICK"
+	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected])
+	fun handle(user: User ref, msg: Message) => user.do_nick(msg)
+
+class val JoinCommand is ClientCommand
+	fun command(): String val => "JOIN"
+	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
+	fun handle(user: User ref, msg: Message) => user.do_join(msg)
+
+class val PartCommand is ClientCommand
+	fun command(): String val => "PART"
+	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
+	fun handle(user: User ref, msg: Message) => user.do_part(msg)
+
+class val TopicCommand is ClientCommand
+	fun command(): String val => "TOPIC"
+	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
+	fun handle(user: User ref, msg: Message) => user.do_topic(msg)
+
+class val QuitCommand is ClientCommand
+	fun command(): String val => "QUIT"
+	fun user_states(): Array[_UserState] val => _UserStates.all()
+	fun handle(user: User ref, msg: Message) => user.do_quit(msg)
+
+
+class val BasicCommandsKey
+	let state: _UserState
+	let command: String val
+	new val create(state': _UserState, command': String) =>
+		state = state'
+		command = command'
+	fun hash(): USize => state().hash() + command.hash()
+	fun eq(other: BasicCommandsKey): Bool => (other.state is state) and other.command.eq(command)
+	fun ne(other: BasicCommandsKey): Bool => not eq(other)
+
+class BasicCommands
+	var commands: Map[BasicCommandsKey, ClientCommand val] ref = Map[BasicCommandsKey, ClientCommand val]()
+
+	new create() =>
+		add_allof(PingCommand)
+		add_allof(PongCommand)
+		add_allof(UserCommand)
+		add_allof(NickCommand)
+		add_allof(PrivmsgCommand)
+		add_allof(JoinCommand)
+		add_allof(PartCommand)
+		add_allof(TopicCommand)
+		add_allof(QuitCommand)
+
+	fun ref add_allof(cmd: ClientCommand val) =>
+		for s in cmd.user_states().values() do
+			@printf[None]("Adding %s / %s\n".cstring(), cmd.command().cstring(), s.apply().cstring())
+			commands.update(BasicCommandsKey(s, cmd.command()), cmd)
+		end
+
+	fun apply(state: _UserState, command: String): (ClientCommand val | None) =>
+		let key = BasicCommandsKey(state, command)
+		if commands.contains(key) then
+			try commands.apply(key)? else None end
+		else
+			None
+		end
 
 actor User
 	let out: OutStream
@@ -39,6 +156,8 @@ actor User
 	var real: String = ""
 	var host: String
 	var full: String = ""
+
+	let commands: BasicCommands = BasicCommands.create()
 
 	var _state: _UserState = _UserStateConnected
 
@@ -74,28 +193,15 @@ actor User
 		// stuff
 
 	be from_client(msg: Message) =>
-		out.print("current user state: " + _state())
-		// rebuild msg to add prefix.
-		// dispatch to user/channel
-		match _state
-		| _UserStateRegistered =>
-			match msg.command
-			| "JOIN" => do_join(msg)
-			| "PART" => do_part(msg)
-			| "PRIVMSG" => do_privmsg(msg)
-			| "TOPIC" => do_topic(msg)
-			| "QUIT" => do_quit(msg)
-			| "PING" => do_ping(msg)
-			| "PONG" => do_pong(msg)
-			end
+		out.print("current user state: " + _state.apply())
+
+		let cmd: (ClientCommand val | None) = commands.apply(_state, msg.command)
+		match cmd
+		| let cmd': ClientCommand val =>
+			out.print("--> found ClientCommand " + cmd'.command())
+			cmd'.handle(this, msg)
 		else
-			match msg.command
-			| "USER" => do_user(msg)
-			| "NICK" => do_nick(msg)
-			| "QUIT" => do_quit(msg)
-			| "PING" => do_ping(msg)
-			| "PONG" => do_pong(msg)
-			end
+			out.print("--> invalid state/command: " + msg.command + " / " + _state.apply())
 		end
 
 	fun ref prefix(): String =>
