@@ -63,19 +63,33 @@ primitive PingCommand is ClientCommand
 	fun command(): String val => "PING"
 	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected])
 	fun handle(user: User ref, msg: Message) =>
-		user.do_ping(msg)
+		user.to_client(_create_pong(msg))
+	fun tag _create_pong(msg: Message): Message =>
+		if (msg.trailing == "") then
+			Message.create("", "PONG", recover try [msg.params(0)?] else Array[String](0) end end, "")
+		else
+			Message.create("", "PONG", recover Array[String](0) end, msg.trailing)
+		end
 
 primitive PongCommand is ClientCommand
 	fun command(): String val => "PONG"
 	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected])
 	fun handle(user: User ref, msg: Message) =>
-		user.do_pong(msg)
+		None
 
 primitive PrivmsgCommand is ClientCommand
 	fun command(): String val => "PRIVMSG"
 	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
 	fun handle(user: User ref, msg: Message) =>
-		user.do_privmsg(msg)
+		try
+			let target = msg.params(0)?
+			if target.substring(0, 1) == "#" then // TODO make this understand configurable channel prefix characters.
+				user.registries.channels.privmsg(user, msg.with_prefix(user.prefix()))
+			else
+				user.registries.users.privmsg(user, msg.with_prefix(user.prefix()))
+			end
+		end
+
 
 primitive UserCommand is ClientCommand
 	fun command(): String val => "USER"
@@ -90,17 +104,20 @@ primitive NickCommand is ClientCommand
 primitive JoinCommand is ClientCommand
 	fun command(): String val => "JOIN"
 	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
-	fun handle(user: User ref, msg: Message) => user.do_join(msg)
+	fun handle(user: User ref, msg: Message) =>
+		user.registries.channels.join(user, msg.with_prefix(user.prefix()))
 
 primitive PartCommand is ClientCommand
 	fun command(): String val => "PART"
 	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
-	fun handle(user: User ref, msg: Message) => user.do_part(msg)
+	fun handle(user: User ref, msg: Message) =>
+		user.registries.channels.part(user, msg.with_prefix(user.prefix()))
 
 primitive TopicCommand is ClientCommand
 	fun command(): String val => "TOPIC"
 	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
-	fun handle(user: User ref, msg: Message) => user.do_topic(msg)
+	fun handle(user: User ref, msg: Message) =>
+		user.registries.channels.update_topic(user, msg.with_prefix(user.prefix()))
 
 primitive QuitCommand is ClientCommand
 	fun command(): String val => "QUIT"
@@ -214,43 +231,11 @@ actor User
 	fun ref _to_client(msg: Message) =>
 		connection.write(msg.string() + "\r\n")
 
-	fun ref do_join(msg: Message) =>
-		registries.channels.join(this, msg.with_prefix(prefix()))
-
-	fun ref do_part(msg: Message) =>
-		registries.channels.part(this, msg.with_prefix(prefix()))
-
-	fun ref do_topic(msg: Message) =>
-		registries.channels.update_topic(this, msg.with_prefix(prefix()))
-
 	fun ref do_quit(msg: Message) =>
 		registries.channels.quit(this, msg.with_prefix(prefix()))
 		registries.users.quit(this, msg.with_prefix(prefix()))
 		_state = _UserStateDisconnected
 		connection.dispose()
-
-	fun ref do_privmsg(msg: Message) =>
-		try
-			let target = msg.params(0)?
-			if target.substring(0, 1) == "#" then // TODO make this understand configurable channel prefix characters.
-				registries.channels.privmsg(this, msg.with_prefix(prefix()))
-			else
-				registries.users.privmsg(this, msg.with_prefix(prefix()))
-			end
-		end
-
-	fun ref do_ping(msg: Message) =>
-		_to_client(_ping_pong("PONG", msg))
-
-	fun ref do_pong(msg: Message) =>
-		_to_client(_ping_pong("PING", msg))
-
-	fun _ping_pong(cmd: String, msg: Message): Message =>
-		if (msg.trailing == "") then
-			Message.create("", cmd, recover try [msg.params(0)?] else Array[String](0) end end, "")
-		else
-			Message.create("", cmd, recover Array[String](0) end, msg.trailing)
-		end
 
 	fun ref do_nick(msg: Message) =>
 		//TODO if check_nick() then
