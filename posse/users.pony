@@ -59,50 +59,50 @@ interface ClientCommand
 		Handle the message in whatever way is appropriate.
 		"""
 
-class val PingCommand is ClientCommand
+primitive PingCommand is ClientCommand
 	fun command(): String val => "PING"
 	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected])
 	fun handle(user: User ref, msg: Message) =>
 		user.do_ping(msg)
 
-class val PongCommand is ClientCommand
+primitive PongCommand is ClientCommand
 	fun command(): String val => "PONG"
 	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected])
 	fun handle(user: User ref, msg: Message) =>
 		user.do_pong(msg)
 
-class val PrivmsgCommand is ClientCommand
+primitive PrivmsgCommand is ClientCommand
 	fun command(): String val => "PRIVMSG"
 	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
 	fun handle(user: User ref, msg: Message) =>
 		user.do_privmsg(msg)
 
-class val UserCommand is ClientCommand
+primitive UserCommand is ClientCommand
 	fun command(): String val => "USER"
 	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateRegistered; _UserStateDisconnected])
 	fun handle(user: User ref, msg: Message) => user.do_user(msg)
 
-class val NickCommand is ClientCommand
+primitive NickCommand is ClientCommand
 	fun command(): String val => "NICK"
 	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected])
 	fun handle(user: User ref, msg: Message) => user.do_nick(msg)
 
-class val JoinCommand is ClientCommand
+primitive JoinCommand is ClientCommand
 	fun command(): String val => "JOIN"
 	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
 	fun handle(user: User ref, msg: Message) => user.do_join(msg)
 
-class val PartCommand is ClientCommand
+primitive PartCommand is ClientCommand
 	fun command(): String val => "PART"
 	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
 	fun handle(user: User ref, msg: Message) => user.do_part(msg)
 
-class val TopicCommand is ClientCommand
+primitive TopicCommand is ClientCommand
 	fun command(): String val => "TOPIC"
 	fun user_states(): Array[_UserState] val => [_UserStateRegistered]
 	fun handle(user: User ref, msg: Message) => user.do_topic(msg)
 
-class val QuitCommand is ClientCommand
+primitive QuitCommand is ClientCommand
 	fun command(): String val => "QUIT"
 	fun user_states(): Array[_UserState] val => _UserStates.all()
 	fun handle(user: User ref, msg: Message) => user.do_quit(msg)
