@@ -23,27 +23,83 @@ actor UserRegistry
 			} end )
 		end
 
-primitive _UserStateConnected fun apply(): String => "UserStateConnected" fun hash(): USize => apply().hash()
-primitive _UserStateNickKnown fun apply(): String => "UserStateNickKnown" fun hash(): USize => apply().hash()
-primitive _UserStateUserKnown fun apply(): String => "UserStateUserKnown" fun hash(): USize => apply().hash()
-primitive _UserStateRegistered fun apply(): String => "UserStateRegistered" fun hash(): USize => apply().hash()
-primitive _UserStateDisconnected fun apply(): String => "UserStateDisconnected" fun hash(): USize => apply().hash()
-primitive _UserStateCapabilityList fun apply(): String => "UserStateCapabilityList" fun hash(): USize => apply().hash()
-primitive _UserStateCapabilitiesNickKnown fun apply(): String => "UserStateapabilitiesNickKnown" fun hash(): USize => apply().hash()
-primitive _UserStateCapabilitiesUserKnown fun apply(): String => "UserStateapabilitiesUserKnown" fun hash(): USize => apply().hash()
+primitive _UserStateConnected
+	fun apply(): String => "UserStateConnected"
+	fun hash(): USize => apply().hash()
+	fun next(): Array[_UserState] => [_UserStateNickKnown; _UserStateUserKnown; _UserStateCapabilityList; _UserStateDisconnected]
+primitive _UserStateNickKnown
+	fun apply(): String => "UserStateNickKnown"
+	fun hash(): USize => apply().hash()
+	fun next(): Array[_UserState] => [_UserStateUserKnown; _UserStateRegistered; _UserStateDisconnected]
+primitive _UserStateUserKnown
+	fun apply(): String => "UserStateUserKnown"
+	fun hash(): USize => apply().hash()
+	fun next(): Array[_UserState] => [_UserStateNickKnown; _UserStateRegistered; _UserStateDisconnected]
+primitive _UserStateRegistered
+	fun apply(): String => "UserStateRegistered"
+	fun hash(): USize => apply().hash()
+	fun next(): Array[_UserState] => [_UserStateDisconnected]
+primitive _UserStateDisconnected
+	fun apply(): String => "UserStateDisconnected"
+	fun hash(): USize => apply().hash()
+	fun next(): Array[_UserState] => []
+primitive _UserStateCapabilityList
+	fun apply(): String => "UserStateCapabilityList"
+	fun hash(): USize => apply().hash()
+	fun next(): Array[_UserState] => [_UserStateCapabilitiesNickKnown; _UserStateCapabilitiesUserKnown; _UserStateDisconnected]
+primitive _UserStateCapabilitiesNickKnown
+	fun apply(): String => "UserStateCapabilitiesNickKnown"
+	fun hash(): USize => apply().hash()
+	fun next(): Array[_UserState] => [_UserStateCapabilitiesUserKnown; _UserStateCapabilitiesNegotiated; _UserStateDisconnected]
+primitive _UserStateCapabilitiesUserKnown
+	fun apply(): String => "UserStateCapabilitiesUserKnown"
+	fun hash(): USize => apply().hash()
+	fun next(): Array[_UserState] => [_UserStateCapabilitiesNickKnown; _UserStateCapabilitiesNegotiated; _UserStateDisconnected]
+primitive _UserStateCapabilitiesNegotiated
+	fun apply(): String => "_UserStateCapabilitiesNegotiated"
+	fun hash(): USize => apply().hash()
+	fun next(): Array[_UserState] => [_UserStateRegistered; _UserStateDisconnected]
 
 type _UserState is (
 		  _UserStateConnected | _UserStateCapabilityList
 		| _UserStateNickKnown | _UserStateCapabilitiesNickKnown
 		| _UserStateUserKnown | _UserStateCapabilitiesUserKnown
+		| _UserStateCapabilitiesNegotiated
 		| _UserStateRegistered
 		| _UserStateDisconnected
 		)
+
+primitive CapabilityServerTime
+	fun apply(): String => "server-time"
+	fun hash(): USize => apply().hash()
+
+type Capability is (
+		CapabilityServerTime
+		)
+
+primitive _Capabilities
+	fun all(): Array[Capability] val => [CapabilityServerTime]
+	fun all_as_string(): Array[String] val =>
+		let result: Array[String] iso = recover iso Array[String](all().size()) end
+		for c in all().values() do
+			result.push(c())
+		end
+		consume result
+	fun from_string(str: String): ( Capability | None ) =>
+		for c in all().values() do
+			if c() == str then
+				return c
+			end
+		end
+		None
+
 
 primitive _UserStates
 	fun only(states: Array[_UserState] val): Array[_UserState] val => states
 	fun all(): Array[_UserState] val => [_UserStateConnected; _UserStateNickKnown; _UserStateCapabilitiesNickKnown; _UserStateCapabilitiesUserKnown; _UserStateRegistered; _UserStateDisconnected; _UserStateCapabilityList]
 	fun all_but(states: Array[_UserState] val): Array[_UserState] val => all()
+	fun allowed(from: _UserState, to: _UserState): Bool =>
+		from.next().contains(to)
 
 interface ClientCommand
 	fun command(): String val
@@ -94,12 +150,73 @@ primitive PrivmsgCommand is ClientCommand
 primitive UserCommand is ClientCommand
 	fun command(): String val => "USER"
 	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateRegistered; _UserStateDisconnected])
-	fun handle(user: User ref, msg: Message) => user.do_user(msg)
+	fun handle(user: User ref, msg: Message) =>
+		try
+			user.user = msg.params(0)?
+			user.real = msg.trailing
+		end
+		user.out.print("user is: " + user.nick)
+		user.out.print("real is: " + user.real)
+		match user.state()
+		| _UserStateCapabilitiesNickKnown =>
+			user.change_state(_UserStateCapabilitiesUserKnown)
+		| _UserStateNickKnown =>
+			user.change_state(_UserStateRegistered)
+			user.registries.users.add(user)
+			user.send_initial_stats()
+		end
+
+primitive CapCommand is ClientCommand
+	fun command(): String val => "CAP"
+	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected]) // TODO restrict this some more?
+	fun handle(user: User ref, msg: Message) =>
+		// TODO LS [302]; LIST [302]; REQ; END; NAK, ACK; NEW; DEL.
+		let sub_command = try msg.params(0)? else "LS" end
+		match sub_command
+		| "LS" =>
+			// TODO if trailing gets too long; split it into multiple
+			//   messages (CAP LS >302 and CAP LS <302)
+			// TODO CAP LS post registration
+			var trailing: String iso = recover iso String() end
+			for c in _Capabilities.all_as_string().values() do
+				if trailing.size() != 0 then trailing.append(" ") end
+				trailing.append(c)
+			end
+			user.to_client(Message.create("", "CAP", ["*"; "LS"], consume trailing))
+		| "REQ" =>
+			// TODO caps can be prefixed with a - to indicate that that cap should be disabled.
+			let caps: Array[Capability] = Array[Capability](5) // XXX 5: rough max count of available caps.
+			let cap_options: Array[String] = msg.trailing.split(" ")
+			for cap_option in cap_options.values() do
+				match _Capabilities.from_string(cap_option)
+				| let c: Capability => caps.push(c)
+				end
+			end
+			user.enable_capabilities(caps)
+			var trailing: String iso = recover iso String() end
+			for c in caps.values() do
+				if trailing.size() != 0 then trailing.append(" ") end
+				trailing.append(c())
+			end
+			user.to_client(Message.create("", "CAP", ["*"; "ACK"], consume trailing))
+		else
+			user.to_client(Message.create("", "410", ["*"; msg.command], "Invalid CAP command"))
+		end
 
 primitive NickCommand is ClientCommand
 	fun command(): String val => "NICK"
 	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected])
-	fun handle(user: User ref, msg: Message) => user.do_nick(msg)
+	fun handle(user: User ref, msg: Message) =>
+		let oldfull = user.full
+		try user.nick = msg.params(0)?  end
+		match user.state()
+		| _UserStateConnected => user.change_state(_UserStateNickKnown)
+		| _UserStateCapabilityList => user.change_state(_UserStateCapabilitiesNickKnown)
+		| _UserStateRegistered =>
+//			user.registries.channels.
+//			user.registries.users.
+			user.to_client(Message(oldfull, "NICK", [], user.nick))
+		end
 
 primitive JoinCommand is ClientCommand
 	fun command(): String val => "JOIN"
@@ -122,8 +239,11 @@ primitive TopicCommand is ClientCommand
 primitive QuitCommand is ClientCommand
 	fun command(): String val => "QUIT"
 	fun user_states(): Array[_UserState] val => _UserStates.all()
-	fun handle(user: User ref, msg: Message) => user.do_quit(msg)
-
+	fun handle(user: User ref, msg: Message) =>
+		user.registries.channels.quit(user, msg.with_prefix(user.prefix()))
+		user.registries.users.quit(user, msg.with_prefix(user.prefix()))
+		user.change_state(_UserStateDisconnected)
+		user.connection.dispose()
 
 class val BasicCommandsKey
 	let state: _UserState
@@ -143,6 +263,7 @@ class BasicCommands
 		add_allof(PongCommand)
 		add_allof(UserCommand)
 		add_allof(NickCommand)
+		add_allof(CapCommand)
 		add_allof(PrivmsgCommand)
 		add_allof(JoinCommand)
 		add_allof(PartCommand)
@@ -151,7 +272,7 @@ class BasicCommands
 
 	fun ref add_allof(cmd: ClientCommand val) =>
 		for s in cmd.user_states().values() do
-			@printf[None]("Adding %s / %s\n".cstring(), cmd.command().cstring(), s.apply().cstring())
+			//@printf[None]("Adding %s / %s\n".cstring(), cmd.command().cstring(), s.apply().cstring())
 			commands.update(BasicCommandsKey(s, cmd.command()), cmd)
 		end
 
@@ -173,6 +294,7 @@ actor User
 	var real: String = ""
 	var host: String
 	var full: String = ""
+	let capabilities: Set[Capability] = Set[Capability](5) // XXX rough guess.
 
 	let commands: BasicCommands = BasicCommands.create()
 
@@ -221,8 +343,22 @@ actor User
 			out.print("--> invalid state/command: " + msg.command + " / " + _state.apply())
 		end
 
+	fun ref enable_capabilities(caps: Array[Capability]) =>
+		capabilities.union(caps.values())
+
 	fun ref prefix(): String =>
 		nick + "!" + user + "@" + host
+
+	fun ref change_state(to: _UserState) =>
+		if _UserStates.allowed(_state, to) then
+			out.print("Changing state from " + _state() + " to " + to())
+			_state = to
+		else
+			out.print("Disallowing state change from " + _state() + " to " + to())
+		end
+
+	fun ref state(): _UserState =>
+		_state
 
 	be to_client_with_nick(msg: Message) =>
 		connection.write(msg.with_param_first(nick).string() + "\r\n")
@@ -230,12 +366,6 @@ actor User
 		_to_client(msg)
 	fun ref _to_client(msg: Message) =>
 		connection.write(msg.string() + "\r\n")
-
-	fun ref do_quit(msg: Message) =>
-		registries.channels.quit(this, msg.with_prefix(prefix()))
-		registries.users.quit(this, msg.with_prefix(prefix()))
-		_state = _UserStateDisconnected
-		connection.dispose()
 
 	fun ref do_nick(msg: Message) =>
 		//TODO if check_nick() then

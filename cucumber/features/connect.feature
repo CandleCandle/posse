@@ -7,6 +7,59 @@ Scenario: Correct connection sequence
   Then I receive these responses on connection 0
     | :server_name 001 cucumber |
 
+Scenario: Connecting with CAP LS, requesting no capabilities
+  When I connect and send these commands on connection 0
+    | CAP LS |
+    | NICK cucumber |
+    | USER carrot * * :aubergine |
+  Then I receive these responses on connection 0
+    | CAP * LS :server-time |
+  When I send these commands on connection 0
+    | CAP END |
+  Then I receive these responses on connection 0
+    | :server_name 001 cucumber |
+
+Scenario: Connecting with CAP LS, requesting server-time capabilities
+  When I connect and send these commands on connection 0
+    | CAP LS |
+    | NICK cucumber |
+    | USER carrot * * :aubergine |
+  Then I receive these responses on connection 0
+    | CAP * LS :server-time |
+  When I send these commands on connection 0
+    | CAP REQ :server-time |
+  Then I receive these responses on connection 0
+    | CAP * ACK :server-time |
+  When I send these commands on connection 0
+    | CAP END |
+  Then I receive these responses on connection 0
+    | :server_name 001 cucumber |
+
+Scenario: messages sent by a non-server-time client are received with a timestamp
+  When I connect and send these commands on connection 0
+    | CAP LS |
+    | NICK cucumber |
+    | USER carrot * * :aubergine |
+  Then I receive these responses on connection 0
+    | CAP * LS :server-time |
+  When I send these commands on connection 0
+    | CAP REQ :server-time |
+  Then I receive these responses on connection 0
+    | CAP * ACK :server-time |
+  When I send these commands on connection 0
+    | CAP END |
+  Then I receive these responses on connection 0
+    | :server_name 001 cucumber |
+  When I send these commands on connection 0
+    | JOIN #watch |
+  When I connect and send these commands on connection 1
+    | NICK cucumber1 |
+    | USER carrot1 * * :aubergine1 |
+    | JOIN #watch |
+    | PRIVMSG #watch :fire! |
+  Then I receive matching responses on connection 0
+    | @time=\d{4}-\d{2}\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}(Z\|([+-][0-9:]{2,5})) :cucumber1!carrot1@[^ ]+ PRIVMSG #watch :fire! |
+
 
 Scenario: quitting the server happily
   When I connect and send these commands on connection 0
