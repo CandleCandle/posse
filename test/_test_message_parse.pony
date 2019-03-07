@@ -58,6 +58,16 @@ actor _TestMessageParse is TestList
 		test(_TestGenericParams("privmsg2 / params", recover ["#bots"; "ACTION drops #bots from pirb's autojoin list."] end, _Examples().privmsg2))
 		test(_TestGenericTrailing("privmsg2 / trailing", "ACTION drops #bots from pirb's autojoin list.", _Examples().privmsg2))
 
+		test(_TestGenericRaw("tagged_privmsg / raw", _Examples.tagged_privmsg, _Examples.tagged_privmsg))
+		test(_TestGenericString("tagged_privmsg / string", "@ccc;aaa=bbb;example.com/ddd=eee :nick!user@some.host-name PRIVMSG #channel :message content", _Examples.tagged_privmsg)) // XXX hash order is likely to change. should use a different test
+		test(_TestGenericPrefix("tagged_privmsg / prefix", "nick!user@some.host-name", _Examples().tagged_privmsg))
+		test(_TestGenericCommand("tagged_privmsg / command", "PRIVMSG", _Examples().tagged_privmsg))
+		test(_TestGenericParams("tagged_privmsg / params", recover ["#channel"; "message content"] end, _Examples().tagged_privmsg))
+		test(_TestGenericTrailing("tagged_privmsg / trailing", "message content", _Examples().tagged_privmsg))
+		test(_TestGenericTags("tagged_privmsg / tags / aaa", "aaa", "bbb", _Examples().tagged_privmsg))
+		test(_TestGenericTags("tagged_privmsg / tags / ccc", "ccc", None, _Examples().tagged_privmsg))
+		test(_TestGenericTags("tagged_privmsg / tags / example.com/ddd", "example.com/ddd", "eee", _Examples().tagged_privmsg))
+
 
 class val _Examples
 	let notice: String = "NOTICE AUTH :*** Found your hostname, welcome back"
@@ -66,6 +76,7 @@ class val _Examples
 	let ping_param: String = "PING uuid"
 	let privmsg: String = ":nick!user@some.host-name PRIVMSG #channel :message content"
 	let privmsg2: String = ":Candle!Candle@Clk-481F8504 PRIVMSG #bots :ACTION drops #bots from pirb's autojoin list."
+	let tagged_privmsg: String = "@aaa=bbb;ccc;example.com/ddd=eee :nick!user@some.host-name PRIVMSG #channel :message content"
 
 	fun val apply(): _Examples =>
 		this
@@ -80,6 +91,13 @@ class Dump
 		h.log("command: " + m.command)
 		for (idx, item) in m.params.pairs() do
 			h.log("param: " + idx.string() + ": " + item)
+		end
+		h.log("tags:")
+		for (k, v) in m.tags.pairs() do
+			match v
+			| let v': String => h.log("  " + k + " => " + v')
+			| let v'': None => h.log("  " + k + " *> (None)")
+			end
 		end
 
 class iso _TestCreateStringPing is UnitTest
@@ -177,6 +195,7 @@ class iso _TestGenericTrailing is UnitTest
 		Dump(h, m)
 		h.assert_eq[String](expected, m.trailing)
 
+
 class iso _TestGenericString is UnitTest
 	let nme: String
 	let expected: String
@@ -192,3 +211,32 @@ class iso _TestGenericString is UnitTest
 		h.assert_eq[String](expected, m.string())
 
 
+class iso _TestGenericTags is UnitTest
+	let nme: String
+	let key: String
+	let expected: (None | String )
+	let input: String
+	new iso create(nme': String, key': String, expected': (None | String), input': String) =>
+		nme = nme'
+		key = key'
+		expected = expected'
+		input = input'
+	fun name(): String => nme
+	fun apply(h: TestHelper) =>
+		let m = Message.from_raw(input)
+		Dump(h, m)
+		try
+			let f: (None | String) = m.tags.apply(key)?
+			match expected
+			| let e': None =>
+				match f
+				| let f': String => h.fail("Expected None, got a String " + f')
+				end
+			| let e'' : String =>
+				match f
+				| let f': None => h.fail("Expected a String: " + e'' + " got None.")
+				| let f'': String =>
+					h.assert_eq[String](e'', f'')
+				end
+			end
+		else h.fail("missing key: " + key) end

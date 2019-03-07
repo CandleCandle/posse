@@ -46,19 +46,19 @@ primitive _UserStateDisconnected
 primitive _UserStateCapabilityList
 	fun apply(): String => "UserStateCapabilityList"
 	fun hash(): USize => apply().hash()
-	fun next(): Array[_UserState] => [_UserStateCapabilitiesNickKnown; _UserStateCapabilitiesUserKnown; _UserStateDisconnected]
+	fun next(): Array[_UserState] => [_UserStateCapabilitiesNickKnown; _UserStateCapabilitiesUserKnown; _UserStateDisconnected; _UserStateRegistered]
 primitive _UserStateCapabilitiesNickKnown
 	fun apply(): String => "UserStateCapabilitiesNickKnown"
 	fun hash(): USize => apply().hash()
-	fun next(): Array[_UserState] => [_UserStateCapabilitiesUserKnown; _UserStateCapabilitiesNegotiated; _UserStateDisconnected]
+	fun next(): Array[_UserState] => [_UserStateCapabilitiesUserKnown; _UserStateCapabilitiesNegotiated; _UserStateDisconnected; _UserStateRegistered]
 primitive _UserStateCapabilitiesUserKnown
 	fun apply(): String => "UserStateCapabilitiesUserKnown"
 	fun hash(): USize => apply().hash()
-	fun next(): Array[_UserState] => [_UserStateCapabilitiesNickKnown; _UserStateCapabilitiesNegotiated; _UserStateDisconnected]
+	fun next(): Array[_UserState] => [_UserStateCapabilitiesNickKnown; _UserStateCapabilitiesNegotiated; _UserStateDisconnected; _UserStateRegistered]
 primitive _UserStateCapabilitiesNegotiated
 	fun apply(): String => "_UserStateCapabilitiesNegotiated"
 	fun hash(): USize => apply().hash()
-	fun next(): Array[_UserState] => [_UserStateRegistered; _UserStateDisconnected]
+	fun next(): Array[_UserState] => [_UserStateRegistered; _UserStateDisconnected; _UserStateRegistered]
 
 type _UserState is (
 		  _UserStateConnected | _UserStateCapabilityList
@@ -170,10 +170,11 @@ primitive CapCommand is ClientCommand
 	fun command(): String val => "CAP"
 	fun user_states(): Array[_UserState] val => _UserStates.all_but([_UserStateDisconnected]) // TODO restrict this some more?
 	fun handle(user: User ref, msg: Message) =>
-		// TODO LS [302]; LIST [302]; REQ; END; NAK, ACK; NEW; DEL.
+		// TODO LS [302]; LIST; REQ; END; NAK, ACK; NEW; DEL.
 		let sub_command = try msg.params(0)? else "LS" end
 		match sub_command
 		| "LS" =>
+			user.change_state(_UserStateCapabilityList)
 			// TODO if trailing gets too long; split it into multiple
 			//   messages (CAP LS >302 and CAP LS <302)
 			// TODO CAP LS post registration
@@ -199,6 +200,14 @@ primitive CapCommand is ClientCommand
 				trailing.append(c())
 			end
 			user.to_client(Message.create("", "CAP", ["*"; "ACK"], consume trailing))
+		| "END" =>
+			if (user.nick != "") and (user.user != "") then
+				user.change_state(_UserStateRegistered)
+				user.registries.users.add(user)
+				user.send_initial_stats()
+			else
+				user.change_state(_UserStateCapabilitiesNegotiated)
+			end
 		else
 			user.to_client(Message.create("", "410", ["*"; msg.command], "Invalid CAP command"))
 		end
@@ -361,7 +370,7 @@ actor User
 		_state
 
 	be to_client_with_nick(msg: Message) =>
-		connection.write(msg.with_param_first(nick).string() + "\r\n")
+		connection.write(msg.with_param_first(nick).string() + "\r\n") // XXX should call `_to_client`
 	be to_client(msg: Message) =>
 		_to_client(msg)
 	fun ref _to_client(msg: Message) =>

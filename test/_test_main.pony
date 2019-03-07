@@ -7,3 +7,4 @@ actor Main is TestList
 	new make() => None
 	fun tag tests(test: PonyTest) =>
 		TestMessageParse.make().tests(test)
+		TestMessage.make().tests(test)
