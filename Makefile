@@ -15,6 +15,7 @@ test:
 	stable env ponyc -o bin test && ./bin/test --only=$(tests)
 
 cucumber: build
+	# should have a `bundle install` in here.
 	pushd cucumber && bundle exec cucumber $(tests); popd
 
 build:
